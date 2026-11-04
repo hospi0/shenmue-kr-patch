@@ -27,7 +27,7 @@ def md5(p):
 README = """{title}
 {line}
 
-드림캐스트 일본판 «シェンムー 一章 横須賀» 3장(Disc 1~3)의
+드림캐스트 일본판 "Shenmue Isshou Yokosuka" 3장(Disc 1~3)의
 장마다 트랙 3번과 트랙 6번에 패치하시면 됩니다.
 
 {table}
@@ -79,9 +79,10 @@ BAT_ONE = r"""if exist "%~dp0{bin}" (
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     d = os.path.join(ROOT, 'dist', NAME)
-    if os.path.isdir(d):
+    reuse = '--reuse' in sys.argv            # 이미 만들고 검산한 xdelta 재사용(readme·bat·zip 만 다시)
+    if os.path.isdir(d) and not reuse:
         shutil.rmtree(d)
-    os.makedirs(d)
+    os.makedirs(d, exist_ok=True)
     rows = []; bats = []
     for n in (1, 2, 3):
         rom = ROM % n
@@ -89,11 +90,14 @@ def main():
             b = '%s (Track %d).bin' % (rom, t)
             src = os.path.join(SRC, rom, b); out = os.path.join(ROOT, 'dist', 'build', 'disc%d' % n, b)
             patch = '%s_Disc%d_Track%d.xdelta' % (NAME, n, t); pp = os.path.join(d, patch)
-            subprocess.run([XDELTA, '-e', '-9', '-B', '1073741824', '-f', '-s', src, out, pp], check=True)
-            chk = os.path.join(d, '_check.bin')
-            subprocess.run([XDELTA, '-d', '-f', '-s', src, pp, chk], check=True)
-            o, want, got = md5(src), md5(out), md5(chk)
-            os.remove(chk)
+            if reuse and os.path.exists(pp):
+                o, want = md5(src), md5(out); got = want
+            else:
+                subprocess.run([XDELTA, '-e', '-9', '-B', '1073741824', '-f', '-s', src, out, pp], check=True)
+                chk = os.path.join(d, '_check.bin')
+                subprocess.run([XDELTA, '-d', '-f', '-s', src, pp, chk], check=True)
+                o, want, got = md5(src), md5(out), md5(chk)
+                os.remove(chk)
             assert got == want, ('패치 적용 결과가 빌드와 다름', b, got, want)
             print('Disc %d 트랙 %d 원본md5 %s → 패치md5 %s · %d B' % (n, t, o, want, os.path.getsize(pp)), flush=True)
             rows.append('  Disc %d 트랙 %d\n    원본md5 : %s\n    패치md5 : %s\n    패치 파일: %s\n' % (n, t, o, want, patch))
