@@ -64,9 +64,17 @@ def main():
             while k < len(t):
                 if t.startswith('Cn', k): b += b'Cn'; k += 2; continue
                 c = t[k]; b += c.encode('euc_kr') if '가' <= c <= '힣' else c.encode('euc_jp'); k += 1
-            newm.append(bytes(b))
+            # ★게임 코드가 문장 위치를 «원본 바이트 오프셋»으로 박아 두고 폭을 잰다(폭 함수 0x1402E6 ← 0x140260 등, 상수 0x336+0x187·0x1D7…)
+            #  → 문장마다 원래 시작 위치·길이를 지킨다. 남는 바이트는 전각 공백(8px)을 앞뒤 반씩(가운데 정렬 유지) — 2026-11-04 실기 정렬 어긋남
+            if len(b) > len(m): raise SystemExit('문장 %d 번역 %d B > 원문 %d B (%s)' % (i, len(b), len(m), KO[i]))
+            pad = len(m) - len(b)
+            if pad % 2: raise SystemExit('문장 %d 홀수 여백 %d' % (i, pad))
+            sp = '　'.encode('euc_jp'); lead = pad // 4; trail = pad // 2 - lead
+            newm.append(sp * lead + bytes(b) + sp * trail)
         else: newm.append(m)
+    assert [len(x) for x in newm] == [len(x) for x in msgs], '문장 길이·위치가 원본과 다름'
     out += b'\0'.join(newm)
+    assert len(out) == len(d), (len(out), len(d))
     os.makedirs(os.path.dirname(OUT), exist_ok=True); open(OUT, 'wb').write(out)
     print('RESUME.DAT %d → %d B, 문장 %d개(그중 한글 %d)' % (len(d), len(out), len(newm), len(KO)))
     # 검산: 모든 한글 문장 글자가 해당 표에 있는가

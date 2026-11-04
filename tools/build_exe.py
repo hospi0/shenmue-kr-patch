@@ -52,6 +52,18 @@ def _subseq(small, big):
 # 전각 공백이 «버튼 그림 자리»가 아니라 «：» 줄 맞춤인 표(손으로 맞춤 — merge_tr.LINE_EDITS)
 ALIGN_TABLES = {0x25F7C0, 0x260798, 0x260B9C, 0x25E70C}
 
+_SAVE_JP = None
+def save_expand(s, depth=0):
+    """저장 안내 사전 원문의 매크로(A~z, 포인터 표 0x2932F8) 펼치기 — H(예/아니오 상자)·9X 코드는 그대로"""
+    global _SAVE_JP
+    if _SAVE_JP is None:
+        d = open(SRC, 'rb').read(); _SAVE_JP = {}
+        for k in range(52):
+            v = struct.unpack_from('<I', d, 0x2932F8 + 4 * k)[0] - BASE
+            _SAVE_JP[chr(65 + k) if k < 26 else chr(97 + k - 26)] = d[v:d.find(b'\0', v)].decode('euc_jp')
+    if depth > 5: return s
+    return re.sub(r'(?<!9)[A-GI-Za-z]', lambda m: save_expand(_SAVE_JP[m.group()], depth + 1), s)
+
 def check_tokens(off, jp, ko):
     if MEMO_LO <= off < MEMO_HI:
         a, b = memo_tokens(jp), memo_tokens(ko)
@@ -60,12 +72,18 @@ def check_tokens(off, jp, ko):
         if not _subseq(b, a) or any(not x.isdigit() or len(x) != 2 for x in b):
             return '사전 코드 다름(원문 코드에서 빼기만 가능): 원문 %r / 번역 %r' % (a, b)
         a = b
+    elif 0x26E890 <= off < 0x26F400:
+        # 저장 안내 사전: 번역은 매크로를 펼친 완성 문장(H 예/아니오 상자·9X 코드만 남김) → 원문도 펼친 뒤 숫자·코드 순서 비교
+        if re.search(r'(?<!9)[A-GI-Za-z]', ko): return '저장 안내: H 말고 매크로 글자가 남음 %r' % ko
+        a = [r.replace('0', '') for r in ascii_runs(save_expand(jp)) if r.replace('0', '')]
+        b = [r.replace('0', '') for r in ascii_runs(ko) if r.replace('0', '')]
     else:
         # 설명 글의 줄바꿈 0 은 번역 길이에 맞춰 다시 접을 수 있다 — 0 을 뺀 서식 토큰(A/B/K/E/M/O/C…)만 순서까지 같게
         a = [r.replace('0', '') for r in ascii_runs(jp) if r.replace('0', '')]
         b = [r.replace('0', '') for r in ascii_runs(ko) if r.replace('0', '')]
     if a != b: return '제어 토큰 다름: 원문 %r / 번역 %r' % (a, b)
-    if off not in ALIGN_TABLES and jp.count('　　') != ko.count('　　'): return '버튼 자리(전각 공백 두 칸) 개수 다름'
+    nrun = lambda s: len(re.findall('　{2,}', s))          # 아이콘 칸 맞춤(merge_tr.align_icons)으로 공백 줄이 길어질 수 있어 «줄» 개수로
+    if off not in ALIGN_TABLES and nrun(jp) != nrun(ko): return '버튼 자리(전각 공백 두 칸) 개수 다름'
     return None
 
 def prep(jp, ko):

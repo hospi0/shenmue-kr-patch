@@ -113,6 +113,14 @@ if os.path.exists(_WK):
     for _l in open(_WK, encoding='utf-8').read().splitlines()[1:]:
         _k, _j, _v = _l.split('	')
         if _v: FIXES[_k] = (_v, '권법 글꼴 문자열(원문 %s)' % _j)
+# 저장 안내 사전(0x26E890~, 매크로 A~z): 일본어 조각 매크로(ません·ています…)는 한국어 어순에 안 맞음 → 매크로를 펼친 완성 문장으로(H 예/아니오 상자·9X 코드만 유지)
+# (2026-11-04 실기 «진행되않습니다 않았습니다»·«종료했습니다») — work/text/save_dict_ko.tsv
+SAVE_LO, SAVE_HI = 0x26E890, 0x26F400
+_SK = os.path.join(ROOT, 'work', 'text', 'save_dict_ko.tsv')
+if os.path.exists(_SK):
+    for _l in open(_SK, encoding='utf-8').read().splitlines()[1:]:
+        _c = _l.split('	')
+        if len(_c) > 1 and _c[1]: FIXES[_c[0]] = (_c[1], '저장 안내 — 매크로 펼친 완성 문장')
 
 LINE_EDITS = {   # 키 → [(바꿀 것, 새 것)], 이유 — 버튼 그림 자리(　)·표 맞춤
     'exe:25E1D8': ([('000　　　 버튼으로', '000　　　버튼으로'), ('00　 또는　 버튼을 눌러 주세요.', '00　나　를 눌러 주세요.')],
@@ -122,6 +130,20 @@ LINE_EDITS = {   # 키 → [(바꿀 것, 새 것)], 이유 — 버튼 그림 자
                     ('　안쪽 빨강·초록 라인：', '　안쪽 빨강·초록 라인　：')], '표 맞춤 — «：» 줄 맞춤'),
     'exe:260B9C': ([('　행운의 열쇠　：', '　행운의 열쇠　　：'), ('　운명의 실　　：', '　운명의 실　　　：'), ('　승리의 문　　：', '　승리의 문　　　：')],
                    '표 맞춤 — «：» 줄 맞춤'),
+    # 버튼 아이콘 앞 글이 원문 칸보다 길어 아이콘이 글자를 덮던 곳(2026-11-04 실기) — 앞 글만 짧게, 칸은 align_icons 가 맞춤
+    'exe:25DF6C': ([('물건 뒤나 모퉁이에서', '그늘·모퉁이에서')], '버튼 아이콘 앞 글 9칸 이내'),
+    'exe:25E4F8': ([('물건 뒤나 모퉁이에서', '그늘·모퉁이에서'), ('확인할 수 있으며,', '확인하고,')], '버튼 아이콘 앞 글 9칸 이내 · 아이콘 칸 맞춘 줄 폭 19칸'),
+    'exe:25E334': ([('오른쪽 아래에', '우하단')], '버튼 아이콘 앞 글 3칸 이내'),
+    'exe:25E4AC': ([('오른쪽 아래에', '우하단')], '버튼 아이콘 앞 글 3칸 이내'),
+    'exe:260454': ([('오른쪽 아래에', '우하단에')], '버튼 아이콘 앞 글 5칸 이내'),
+    'exe:2604BC': ([('오른쪽 아래에', '우하단에')], '버튼 아이콘 앞 글 5칸 이내'),
+    'exe:25E674': ([('물건에 대해', '물건에다')], '버튼 아이콘 앞 글 5칸 이내'),
+    'exe:25E95C': ([('타이틀 화면에서', '제목 화면에서')], '버튼 아이콘 앞 글 7칸 이내'),
+    'exe:25EA2C': ([('타이틀 화면에서', '제목 화면에서')], '버튼 아이콘 앞 글 7칸 이내'),
+    # 어른이 청년(료)을 부르는 お兄さん/お兄ちゃん = 총각·손님(2026-11-04 하스피: 애매한 아이는 오빠 유지, 어른은 총각·학생·손님)
+    'F1102B003': ([('아, 오빠', '아, 손님')], '가게 점원 お兄さん → 손님'),
+    'F1229B098': ([('무섭게 생긴 오빠들이', '무섭게 생긴 총각들이')], '어른 화자 お兄さん → 총각'),
+    'F1105B096': ([('오빠가 데루이 씨를', '총각이 데루이 씨를')], '아주머니 화자 お兄ちゃん → 총각'),
     'exe:270714': ([('초승달차기　　　', '초승달차기')], '뒤 전각 공백(버튼 자리 아님) 빼기'),
 }
 
@@ -137,6 +159,8 @@ def fit(word, jo):
             if c == '으로': return '로' if j in (0, 8) else '으로'
             return v if j == 0 else c
     return jo
+
+MALE_SPK = {'YUKK', 'HINA', 'AKIR'}   # お兄ちゃん 을 부르는 남자 화자(YUKK 실기 확인 · HINA 남자 말투 «頼まねえよ» · AKIR=료)
 
 def replace_term(t, a, b, strict):
     pre = r'(?<![가-힣])' if strict else ''
@@ -220,6 +244,29 @@ if os.path.exists(_HS):
     for _l in open(_HS, encoding='utf-8').read().splitlines()[1:]:
         _c = _l.split('\t')
         HELP_SHORT[_c[0]].append((int(_c[1]), _c[2], _c[3]))
+ICON_RUN = re.compile(r'(?<!　)　　(?![　：])')          # 원문 버튼 그림 자리 = 딱 전각 공백 둘(표 맞춤 «　：» 제외)
+KO_RUN = re.compile(r'　{2,}(?!：)')
+def align_icons(jp, ko):
+    """버튼 아이콘은 원문 조각의 «전각 공백 둘» 칸에 고정으로 그려진다(2026-11-04 실기 R·A 아이콘이 글자를 덮음).
+    번역 조각의 공백 줄(같은 순번)을 원문 칸 c..c+1 을 정확히 덮도록 늘리고 줄인다. 앞 글이 c 칸을 넘으면 알림.
+    돌려줌: (새 글, 알림 목록)"""
+    notes = []
+    h = HEAD.match(ko); head = h.group() if h else ''; ps = ko[len(head):].split('0')
+    jh = HEAD.match(jp); jps = (jp[len(jh.group()):] if jh else jp).split('0')
+    for i, jpp in enumerate(jps):
+        targets = [width(jpp[:m.start()]) for m in ICON_RUN.finditer(jpp)]
+        if not targets or i >= len(ps): continue
+        runs = list(KO_RUN.finditer(ps[i]))
+        if len(runs) != len(targets):
+            notes.append('조각 %d 버튼 자리 %d ≠ 원문 %d' % (i, len(runs), len(targets))); continue
+        p = ps[i]
+        for m, c in reversed(list(zip(runs, targets))):
+            s = width(p[:m.start()])
+            if s > c: notes.append('조각 %d 버튼 자리 앞 글 %d칸 > 원문 %d칸' % (i, s, c)); continue
+            p = p[:m.start()] + '　' * (c + 2 - s) + p[m.end():]
+        ps[i] = p
+    return head + '0'.join(ps), notes
+
 def help_fit(jp, ko):
     """도움말 그리기(0x0C0E2514): 0 마다 조각 하나를 52 B 줄 버퍼에 모아 그림 — 조각 i 는 줄 i//2, 칸 (i%2)×19 격자.
     조각 배열은 20칸(매크로 펼친 뒤 합계)·버튼 안내/아이콘은 원문 격자에 고정 → 조각 수는 원문과 같아야 한다.
@@ -333,6 +380,66 @@ def help_layout(ko, targets=None):
     out = head + ''.join(a + '0' + b + '0' for a, b in rows)
     return out.replace(SLOT, '　　'), err
 
+def _jong(ch): return '가' <= ch <= '힣' and (ord(ch) - 0xAC00) % 28 != 0
+def _jong_l(ch): return '가' <= ch <= '힣' and (ord(ch) - 0xAC00) % 28 == 8
+JOSA_PAIRS = [('이', '가'), ('을', '를'), ('은', '는'), ('과', '와')]
+def josa_after_codes(d):
+    """사전 코드·매크로(메모장 0x27CED0 · 기술 설명 0x293980 · 저장 안내 0x2932F8) 뒤 조사를 «펼친 낱말» 받침에 맞춤.
+    (2026-11-04 실기 «파일가»·«가능성가» → 전수 검사에서 톰가·찰리은·첸 대인와·문신를 등 발견) 출력 TSV 를 고쳐 쓰고 로그 줄을 돌려줌."""
+    files = sorted(glob.glob(os.path.join(OUT, 'sm1_*.tsv')))
+    rows = {}
+    for f in files:
+        for ln in open(f, encoding='utf-8').read().splitlines()[1:]:
+            c = ln.split('\t')
+            if len(c) > 4: rows[c[0]] = c[4]
+    def ptab(a, n):
+        return [rows.get('exe:%06X' % (struct.unpack_from('<I', d, a + 4 * i)[0] - BE.BASE)) or '' for i in range(n)]
+    SAVE = dict(zip([chr(65 + i) for i in range(26)] + [chr(97 + i) for i in range(26)], ptab(0x2932F8, 52)))
+    MEMO = ptab(0x27CED0, 159); WAZA = ptab(0x293980, 39)
+    val = lambda c: int(c) if c.isdigit() else ord(c) - 55
+    def last_char(w, depth=0):            # 펼친 낱말의 마지막 한글(저장 매크로는 안쪽까지)
+        w = w.rstrip('　 ')
+        if depth < 4 and w and w[-1] in SAVE and SAVE[w[-1]]: return last_char(SAVE[w[-1]], depth + 1)
+        w = w.rstrip('」』］）')
+        return w[-1] if w else ''
+    def code_re(off):
+        if 0x26E890 <= off < 0x26F400: return re.compile(r'(?<!9)([A-Za-z])'), lambda m: SAVE.get(m.group(1), '')
+        if 0x264000 <= off < 0x26A100: return re.compile(r'(?=[1-9A-I])([0-9A-I][0-9])|0[0-9]'), lambda m: MEMO[val(m.group(1)[0]) * 10 + int(m.group(1)[1]) - 10] if val(m.group(1)[0]) * 10 + int(m.group(1)[1]) - 10 < 159 else ''
+        if 0x26FFD4 <= off < 0x271700: return re.compile(r'([0-9]{2})'), lambda m: WAZA[int(m.group(1))] if int(m.group(1)) < 39 else ''
+        return None, None
+    log = []
+    for f in files:
+        lines = open(f, encoding='utf-8').read().splitlines(); ch = False
+        for i, ln in enumerate(lines[1:], 1):
+            c = ln.split('\t')
+            if len(c) < 5 or not c[0].startswith('exe:') or not c[4]: continue
+            rx, word = code_re(int(c[0][4:], 16))
+            if not rx: continue
+            ko = c[4]; out = []; pos = 0
+            for m in rx.finditer(ko):
+                if m.group(1) is None: continue        # 0n = 줄 앞 제어
+                w = word(m)
+                if not w: continue
+                k = m.end(); br = ''
+                while k < len(ko) and ko[k] in '」』］）': br += ko[k]; k += 1
+                p = last_char(w)
+                if not ('가' <= p <= '힣'): continue
+                for a, b in JOSA_PAIRS:
+                    for cur, want in ((b, a), (a, b)):
+                        if ko.startswith(cur, k) and (k + 1 >= len(ko) or not ('가' <= ko[k + 1] <= '힣')):
+                            right = a if _jong(p) else b
+                            if cur != right: out.append((k, cur, right))
+                if ko.startswith('로', k) and _jong(p) and not _jong_l(p): out.append((k, '로', '으로'))
+                if ko.startswith('으로', k) and (not _jong(p) or _jong_l(p)): out.append((k, '으로', '로'))
+            if not out: continue
+            n = ko
+            for k, cur, right in sorted(set(out), reverse=True): n = n[:k] + right + n[k + len(cur):]
+            log.append('%s\t%s\t사전 코드 뒤 조사 받침 맞춤\t%s\t%s' % (os.path.basename(f)[:-4], c[0], ko, n))
+            c[4] = n; lines[i] = '\t'.join(c); ch = True
+        if ch: open(f, 'w', encoding='utf-8', newline='\n').write('\n'.join(lines) + '\n')
+    print('사전 코드 뒤 조사 맞춤 %d줄' % len(log))
+    return log
+
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     src = sys.argv[1]; skip = set(sys.argv[3:]) if len(sys.argv) > 2 and sys.argv[2] == '--skip' else set()
@@ -364,6 +471,10 @@ def main():
             before = ko; why = []
             if not ko.strip() and key in FIXES: ko = FIXES[key][0]         # 빈 번역에도 손 교정(권법 글꼴 등) 적용
             if ko.strip():
+                if c[1] in MALE_SPK and '오빠' in ko:            # お兄ちゃん = 남자 화자면 «형»(2026-11-04 하스피 실기 «오빠 아니고 형이야»)
+                    n = replace_term(ko, '오빠', '형', False)
+                    n = re.sub(r'형(?=다[.!?…~,]|다$)', '형이', n)
+                    if n != ko: ko = n; why.append('남자 화자 오빠→형')
                 for trig, a, b, strict in GLOSSARY:
                     if (trig in jp or trig in jp_rule) and a in ko:
                         n = replace_term(ko, a, b, strict)
@@ -372,6 +483,9 @@ def main():
                 if n != ko: ko = n; why.append('반각 따옴표→원문 괄호')
                 if '『' in jp and '「' not in jp and '『' not in ko and ko.count('「') == jp.count('『'):
                     ko = ko.replace('「', '『').replace('」', '』'); why.append('「」→원문 『』')
+                if key.startswith('exe:') and 0x26E890 <= int(key[4:], 16) < 0x26F400:   # 저장 안내 사전(포인터 표 0x2932F8, A~z 매크로)
+                    n = re.sub(r'D(］?)([가는를와])', lambda m: 'D' + m.group(1) + {'가': '이', '는': '은', '를': '을', '와': '과'}[m.group(2)], ko)
+                    if n != ko: ko = n; why.append('매크로 D=파일 뒤 조사 받침(파일가→파일이, 2026-11-04 실기)')
                 if key in FIXES: ko, r = FIXES[key]; why.append(r)
                 if key in LINE_EDITS:
                     eds, r = LINE_EDITS[key]
@@ -398,7 +512,9 @@ def main():
                                 h_ = HEAD.match(k2); hd = h_.group() if h_ else ''; ps = k2[len(hd):].split('0')
                                 for r, m_, t_ in HELP_SHORT[key]: ps[2 * r] = m_; ps[2 * r + 1] = t_
                                 k2 = hd + '0'.join(ps); why.append('도움말 넓은 줄 줄임(%d줄)' % len(HELP_SHORT[key]))
-                                n, notes = help_fit(info[off][3], k2)
+                            n, an = align_icons(info[off][3], k2)      # 버튼 아이콘 칸 = 원문 칸(2026-11-04 실기)
+                            if n != k2: why.append('버튼 그림 자리를 원문 칸에'); k2 = n
+                            k2, notes = help_fit(info[off][3], k2); notes = an + notes
                             for x in notes: HELP_WARN.append('%s	%s	%s' % (key, x, k2))
                         elif '0' in info[off][3] and re.match(r'^(【|[A-Z])', info[off][3]):
                             jl = [width(re.sub(r'^【[^】]*】[A-Z]?', '', x)) for x in lines_of(info[off][3])]
@@ -410,6 +526,7 @@ def main():
             if ko != before: log.append('%s\t%s\t%s\t%s\t%s' % (base, key, ' · '.join(why), before, ko))
             c[4] = ko; out.append('\t'.join(c))
         open(os.path.join(OUT, base + '.tsv'), 'w', encoding='utf-8', newline='\n').write('\n'.join(out) + '\n')
+    log += josa_after_codes(d)
     open(os.path.join(OUT, 'merge_log.tsv'), 'w', encoding='utf-8', newline='\n').write('\n'.join(log) + '\n')
     open(os.path.join(ROOT, 'work', 'check', 'help_fit.tsv'), 'w', encoding='utf-8', newline='\n').write('key\tnote\ttext\n' + ''.join(x + '\n' for x in HELP_WARN))
     print('도움말 알림 %d (work/check/help_fit.tsv)' % len(HELP_WARN))
