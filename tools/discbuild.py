@@ -56,6 +56,7 @@ def reserve(n, ents):
             res[full] = sec(size // 4) + 1
         elif full == '/MISC/RESUME.DAT':
             res[full] = 2
+    # 맵 텍스처(scene_pack)로 다시 압축한 gzip 은 원본보다 커지지 않음(2026-11-05 실측) — 여유 없이, 커지면 «여유 초과»로 실패
     return res
 
 def plan(n):
@@ -83,7 +84,8 @@ def plan(n):
 
 def changed_files(n):
     out = {}
-    for root in (os.path.join(ROOT, 'work', 'build', 'gfx_common'), os.path.join(ROOT, 'work', 'build', 'common'), os.path.join(ROOT, 'work', 'build', 'disc%d' % n)):   # 그림(gfx_pack) → 공통 → 장별
+    for root in (os.path.join(ROOT, 'work', 'build', 'gfx_common'), os.path.join(ROOT, 'work', 'build', 'common'), os.path.join(ROOT, 'work', 'build', 'disc%d' % n),
+                 os.path.join(ROOT, 'work', 'build', 'scene_disc%d' % n)):   # 그림(gfx_pack) → 공통 → 장별 → 맵 텍스처(scene_pack)
         if not os.path.isdir(root): continue
         for dp, dn, fn in os.walk(root):
             for f in fn:
