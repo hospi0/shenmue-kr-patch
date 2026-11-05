@@ -284,12 +284,25 @@ def apply(id_, items):
         if mode == 'flat':                    # 상자를 바탕색(밝은 쪽 화소 중앙값)으로 평평하게 — 지도 칸처럼 바탕이 고른 곳
             reg = out[y0:y1, x0:x1]; rgbf = reg[..., :3].reshape(-1, 3).astype(np.float32)
             lum = rgbf @ np.array([0.3, 0.59, 0.11], np.float32)
-            bgc = np.median(rgbf[lum >= np.percentile(lum, 50)], axis=0)
-            sd = rgbf[lum >= np.percentile(lum, 50)].std(axis=0) * 0.5
+            bgc = np.array(it['bg'], np.float32) if 'bg' in it else np.median(rgbf[lum >= np.percentile(lum, 50)], axis=0)   # bg = 바탕색 직접 지정
+            sd = rgbf[lum >= np.percentile(lum, 50)].std(axis=0) * it.get('noise', 0.5)                                      # noise = 결 세기(0 = 단색)
             rng = np.random.default_rng(x0 * 7919 + y0)
             fillv = np.clip(bgc + rng.normal(0, 1, reg[..., :3].shape) * sd, 0, 255)
             reg[..., :3] = fillv.astype(np.uint8)
             m = np.zeros((y1 - y0, x1 - x0), bool); mode = 'none'
+        if mode == 'rowprof':                 # 가로로 고른 판: 글자 없는 열 cols 의 줄별 색(중앙값)으로 상자를 다시 칠함
+            out[y0:y1, x0:x1, :3] = np.median(im[y0:y1][:, it['cols'], :3], axis=1)[:, None, :].astype(np.uint8)
+            mode = 'none'
+        if mode == 'colprof':                 # 세로로 고른 판(나무결·줄무늬): 글자 없는 줄 rows 의 열별 색으로 다시 칠함. ink=δ 면 어두운 글자 화소 둘레만
+            prof = np.median(im[it['rows']][:, x0:x1, :3], axis=0)[None, :, :]
+            if 'delta' in it:
+                lum = im[y0:y1, x0:x1, :3].astype(np.float32) @ np.array([0.3, 0.59, 0.11], np.float32)
+                mk = cv2.dilate((lum < float(np.median(prof @ np.array([0.3, 0.59, 0.11]))) - it['delta']).astype(np.uint8), np.ones((3, 3), np.uint8), iterations=it.get('grow', 2)) > 0
+                mk &= im[y0:y1, x0:x1, 3] > 128
+                out[y0:y1, x0:x1, :3][mk] = np.broadcast_to(prof, (y1 - y0, x1 - x0, 3))[mk].astype(np.uint8)
+            else:
+                out[y0:y1, x0:x1, :3] = np.broadcast_to(prof, (y1 - y0, x1 - x0, 3)).astype(np.uint8)
+            mode = 'none'
         if mode == 'dark':                    # 밝은 바탕 위 진한 글자: 바탕 밝기보다 많이 어두운 화소 = 글자(큰 글자도 통째로)
             lum = im[y0:y1, x0:x1, :3].astype(np.float32) @ np.array([0.3, 0.59, 0.11], np.float32)
             m = lum < np.percentile(lum, 75) - it.get('delta', 45); mode = 'auto'
@@ -336,7 +349,18 @@ def apply(id_, items):
         W, H = tx1 - tx0, ty1 - ty0
         if W < 2 or H < 2: notes.append('%s 상자 너무 작음 %s' % (id_, box)); continue
         rot = it.get('rot', 0)               # 텍스처 안 글자가 누워 있으면(PIL 반시계 각도) 바로 세워 그린 뒤 같은 각도로 눕힘
-        if rot not in (0, 90, 270):          # 비스듬한 글자: tw×th 로 바로 그린 뒤 rot 도(반시계) 돌려 상자 가운데에
+        if it.get('full'):                   # 그림 경계에 걸친 낱말: full 크기로 한 번에 그려 crop 위치의 W×H 만 이 판에
+            fw_, fh_ = it['full']; cx_, cy_ = it.get('crop', (0, 0))
+            m0 = render_mask(it['t'], fw_ * 4, fh_, it.get('font', 'gothic'), False, 'c', spacing=it.get('spacing', 0.04))   # 낱말 본래 폭을 재서
+            xs_ = np.nonzero(m0.max(axis=0) > 0.1)[0]; m0 = m0[:, xs_.min():xs_.max() + 1]
+            tw_ = min(fw_, int(m0.shape[1] * it.get('stretch', 1.6)))                                                       # 원문처럼 옆으로 늘리되 1.6배까지, 전체 폭 가운데에
+            m1 = np.zeros((fh_, fw_), np.float32); ox_ = (fw_ - tw_) // 2
+            m1[:, ox_:ox_ + tw_] = cv2.resize(m0, (tw_, fh_), interpolation=cv2.INTER_AREA)
+            a = m1[cy_:cy_ + H, cx_:cx_ + W]
+        elif it.get('vsize'):                # 원문처럼 한쪽으로 늘린 글자: vsize 비율로 그린 뒤 상자 크기로 늘림
+            vw_, vh_ = it['vsize']
+            a = cv2.resize(render_mask(it['t'], vw_ * 4, vh_ * 4, it.get('font', 'gothic'), it.get('v', False), it.get('align', 'c'), spacing=it.get('spacing', 0.08)), (W, H), interpolation=cv2.INTER_AREA)
+        elif rot not in (0, 90, 270):          # 비스듬한 글자: tw×th 로 바로 그린 뒤 rot 도(반시계) 돌려 상자 가운데에
             tw_, th_ = it['tsize']
             a0 = render_mask(it['t'], tw_, th_, it.get('font', 'gothic'), it.get('v', False), it.get('align', 'c'), spacing=it.get('spacing', 0.08))
             r = Image.fromarray((a0 * 255).astype(np.uint8)).rotate(rot, resample=Image.BICUBIC, expand=True)
@@ -426,10 +450,13 @@ def main():
         Image.fromarray(np.clip(so + d_, 0, 255).astype(np.uint8)).save(os.path.join(D, 'new', small + '.png'))
         SPEC[small] = []; GROUP[small] = GROUP.get(big, '기타')
     label = {}
-    for l in open(os.path.join(D, '선택_범위1.tsv'), encoding='utf-8').read().splitlines()[1:]:
-        c = l.split('\t'); label[c[0]] = c[2]
+    for fn in ('선택_범위1.tsv', '선택_범위1_보충.tsv'):
+        for l in open(os.path.join(D, fn), encoding='utf-8').read().splitlines()[1:]:
+            c = l.split('\t'); label[c[0]] = c[2]
     groups = {}
     for k in SPEC: groups.setdefault(GROUP.get(k, '기타'), []).append(k)
+    if sys.argv[1:]:                                     # id 를 지정하면 그 id 가 든 묶음의 미리보기만 다시
+        groups = {g: ks for g, ks in groups.items() if set(ks) & set(want)}
     for g, ks in groups.items():
         for p in previews(ks, g, label): print(p)
     for n in notes: print('!', n)
