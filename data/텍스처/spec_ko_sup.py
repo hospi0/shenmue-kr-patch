@@ -103,7 +103,7 @@ S('e8793ab775ec', '보충표지판', B(22, 6, 42, 62, '이나리신사', v=True,
 
 # ───── 스토리 소품 ─────
 S('ecbb4f8aacf5', '보충스토리', B(0, 0, 128, 128, '', erase='alpha'), B(4, 2, 124, 126, '료 씨에게', v=True, font='mincho', fit='box', vsize=(40, 124), color=(8, 8, 8)))
-S('86f8ad80d8ad', '보충스토리', B(0, 0, 64, 64, '', erase='alpha'), B(1, 3, 63, 28, '바이루촌', font='mincho', fit='box', color=(40, 40, 48)), B(1, 30, 40, 52, '에서', font='mincho', fit='box', color=(40, 40, 48)))
+S('86f8ad80d8ad', '보충스토리', B(0, 0, 64, 64, '', erase='alpha'), B(1, 3, 63, 28, '백록촌', font='mincho', fit='box', color=(40, 40, 48)), B(1, 30, 40, 52, '에서', font='mincho', fit='box', color=(40, 40, 48)))
 S('816e0d5c9fdf', '보충스토리', B(0, 0, 93, 128, '', erase='alpha'), B(96, 0, 128, 110, '', erase='alpha'),
   B(2, 8, 92, 120, '홍슈잉\n노사', font='brush', fit='box', color=(8, 8, 8)), B(98, 2, 127, 108, '첸야오원', v=True, font='brush', fit='box', color=(8, 8, 8)))
 S('aec55d6748a2', '보충스토리', B(0, 0, 93, 128, '', erase='alpha'), B(96, 0, 128, 110, '', erase='alpha'),
