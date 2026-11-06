@@ -7,7 +7,7 @@ r"""쉔무 1장 요코스카 배포 묶음 — dist/Shenmue1_KR_<VER>/ : 장마�
 import hashlib, os, shutil, subprocess, sys, zipfile
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 
-VER = 'v0.9'
+VER = 'v0.92'
 XDELTA = r'C:\claude\utils\xdelta.exe'
 ROM = 'Shenmue - Isshou Yokosuka (Japan) (Disc %d)'
 SRC = r'C:\claude\roms\dc'

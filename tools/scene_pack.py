@@ -40,7 +40,8 @@ def main():
         for f in files:
             rel = os.path.relpath(f, src)
             built = os.path.join(dst, rel); bsrc = os.path.join(bt, rel)
-            raw = open(bsrc if os.path.exists(bsrc) else f, 'rb').read()
+            gsrc = os.path.join(ROOT, 'work', 'build', 'gfx_common', rel)      # ★gfx_pack 결과 위에 덮는다 — 원본에서 다시 만들면 뒤 단계가 앞 단계 그림을 지운다(중급·습득 일본어 사고)
+            raw = open(next((q for q in (bsrc, gsrc) if os.path.exists(q)), f), 'rb').read()
             gz = raw[:2] == b'\x1f\x8b'
             try: d = bytearray(gzip.decompress(raw) if gz else raw)
             except Exception: continue

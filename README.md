@@ -4,7 +4,7 @@
 
 ## 내려받기
 
-[릴리즈](https://github.com/hospi0/shenmue-kr-patch/releases/latest)에서 `Shenmue1_KR_v0.9.zip` 을 받아
+[릴리즈](https://github.com/hospi0/shenmue-kr-patch/releases/latest)에서 `Shenmue1_KR_v0.92.zip` 을 받아
 압축 안 `readme.txt` 대로 장마다 원본 트랙 3·6에 적용하세요(나머지 트랙·cue 는 원본 그대로).
 원본·패치 md5 는 `readme.txt` 에 있습니다.
 
